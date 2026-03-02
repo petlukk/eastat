@@ -24,12 +24,23 @@ case "$(uname -s)" in
         ;;
 esac
 
+# Detect architecture for kernel selection
+ARCH="$(uname -m)"
+
 mkdir -p "$LIB_DIR"
 
 for kernel in csv_scan csv_layout csv_parse csv_stats; do
+    # Use ARM-specific kernels on aarch64 (NEON: 128-bit, no movemask)
+    SRC="${kernel}.ea"
+    if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
+        if [[ -f "$KERNEL_DIR/${kernel}_arm.ea" ]]; then
+            SRC="${kernel}_arm.ea"
+        fi
+    fi
+
     OUTNAME="${PREFIX}${kernel}${EXT}"
-    echo "Compiling ${kernel}.ea -> ${OUTNAME}"
-    (cd "$LIB_DIR" && "$EA" "$KERNEL_DIR/${kernel}.ea" --lib -o "$OUTNAME")
+    echo "Compiling ${SRC} -> ${OUTNAME}"
+    (cd "$LIB_DIR" && "$EA" "$KERNEL_DIR/${SRC}" --lib -o "$OUTNAME")
 done
 
 rm -f "$LIB_DIR"/*.o
