@@ -97,9 +97,51 @@ jobs:
           name: wheel-linux-aarch64
           path: dist/*.whl
 
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download ea binary
+        shell: pwsh
+        run: |
+          Invoke-WebRequest `
+            "https://github.com/$env:EA_REPO/releases/download/$env:EA_VERSION/ea-windows-x86_64.zip" `
+            -OutFile ea.zip
+          Expand-Archive ea.zip -DestinationPath .
+          Move-Item ea-windows-x86_64\ea.exe .\ea.exe
+
+      - name: Compile kernels
+        shell: bash
+        run: EA_BIN=./ea.exe ./build_kernels.sh
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build and retag wheel
+        shell: pwsh
+        run: |
+          pip install build wheel
+          python -m build --wheel
+          python -m wheel tags --platform-tag win_amd64 --remove (Get-ChildItem dist\eastat-*.whl).FullName
+
+      - name: Test wheel in clean venv
+        shell: pwsh
+        run: |
+          python -m venv $env:TEMP\test-venv
+          & $env:TEMP\test-venv\Scripts\pip install (Get-ChildItem dist\*.whl).FullName
+          & $env:TEMP\test-venv\Scripts\pip install pytest
+          & $env:TEMP\test-venv\Scripts\pytest tests\ -v
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-windows
+          path: dist/*.whl
+
   publish:
     if: startsWith(github.ref, 'refs/tags/eastat-v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
-    needs: [build-linux-x86_64, build-linux-aarch64]
+    needs: [build-linux-x86_64, build-linux-aarch64, build-windows]
     runs-on: ubuntu-24.04
     environment: pypi
     steps:

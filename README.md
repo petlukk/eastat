@@ -10,7 +10,7 @@ Computes count, mean, stddev, min, max, p25, p50, p75 for every numeric column. 
 pip install eastat
 ```
 
-Pre-built wheels include compiled SIMD kernels for Linux x86_64 and aarch64. No compiler needed.
+Pre-built wheels include compiled SIMD kernels for Linux x86_64, Linux aarch64, and Windows x86_64. No compiler needed.
 
 ## Usage
 
