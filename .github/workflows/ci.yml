@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out eacompute
+        uses: actions/checkout@v4
+        with:
+          repository: petlukk/eacompute
+          path: eacompute
+
+      - name: Install LLVM 18 and system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-18-dev clang-18 libpolly-18-dev libzstd-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Ea compiler
+        run: cargo build --features=llvm --release --quiet
+        working-directory: eacompute
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python deps
+        run: pip install numpy
+
+      - name: Compile kernels and generate bindings
+        run: |
+          EA=eacompute/target/release/ea
+          for kernel in csv_scan csv_layout csv_parse csv_stats; do
+            $EA kernels/${kernel}.ea --lib -o lib${kernel}.so
+            $EA bind kernels/${kernel}.ea --python
+          done
+
+      - name: Generate test data
+        run: python generate_test.py --rows=100000
+
+      - name: Run eastat (fast scan)
+        run: python eastat.py test_100000.csv --no-quotes
+
+      - name: Run eastat (quoted scan)
+        run: python eastat.py test_100000.csv --quoted
+
+      - name: Run eastat (JSON output)
+        run: python eastat.py test_100000.csv --quoted --json
+
+      - name: Generate and test stress CSV
+        run: |
+          python generate_test.py --stress --rows=1000
+          python eastat.py stress_1000.csv --quoted
