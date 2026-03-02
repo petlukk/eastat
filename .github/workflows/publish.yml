@@ -1,0 +1,180 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-wheel-linux-x86_64:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out eacompute
+        uses: actions/checkout@v4
+        with:
+          repository: petlukk/eacompute
+          path: eacompute
+
+      - name: Install LLVM 18 and system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-18-dev clang-18 libpolly-18-dev libzstd-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Ea compiler
+        run: cargo build --features=llvm --release --quiet
+        working-directory: eacompute
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python build deps
+        run: pip install build numpy
+
+      - name: Compile kernels and generate bindings
+        run: |
+          EA=eacompute/target/release/ea
+          for kernel in csv_scan csv_layout csv_parse csv_stats; do
+            $EA kernels/${kernel}.ea --lib -o lib${kernel}.so
+            $EA bind kernels/${kernel}.ea --python
+          done
+
+      - name: Verify before packaging
+        run: |
+          python generate_test.py --rows=10000
+          python eastat.py test_10000.csv --quoted
+
+      - name: Set version from tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          sed -i "s/^version = .*/version = \"${TAG}\"/" pyproject.toml
+
+      - name: Build wheel
+        run: python -m build --wheel
+        env:
+          # Tag wheel as linux x86_64 (contains native .so)
+          SETUPTOOLS_EXT_SUFFIX: .so
+
+      - name: Retag wheel as platform-specific
+        run: |
+          pip install wheel
+          cd dist
+          for f in *.whl; do
+            python -m wheel tags --platform-tag manylinux_2_39_x86_64 --remove "$f"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-linux-x86_64
+          path: dist/*.whl
+
+  build-wheel-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out eacompute
+        uses: actions/checkout@v4
+        with:
+          repository: petlukk/eacompute
+          path: eacompute
+
+      - name: Install LLVM 18 and system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-18-dev clang-18 libpolly-18-dev libzstd-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Ea compiler
+        run: cargo build --features=llvm --release --quiet
+        working-directory: eacompute
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python build deps
+        run: pip install build numpy
+
+      - name: Compile kernels and generate bindings
+        run: |
+          EA=eacompute/target/release/ea
+          for kernel in csv_scan csv_layout csv_parse csv_stats; do
+            $EA kernels/${kernel}.ea --lib -o lib${kernel}.so
+            $EA bind kernels/${kernel}.ea --python
+          done
+
+      - name: Verify before packaging
+        run: |
+          python generate_test.py --rows=10000
+          python eastat.py test_10000.csv --quoted
+
+      - name: Set version from tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          sed -i "s/^version = .*/version = \"${TAG}\"/" pyproject.toml
+
+      - name: Build wheel
+        run: python -m build --wheel
+
+      - name: Retag wheel as platform-specific
+        run: |
+          pip install wheel
+          cd dist
+          for f in *.whl; do
+            python -m wheel tags --platform-tag manylinux_2_39_aarch64 --remove "$f"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-linux-arm64
+          path: dist/*.whl
+
+  build-sdist:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build
+        run: pip install build
+
+      - name: Set version from tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          sed -i "s/^version = .*/version = \"${TAG}\"/" pyproject.toml
+
+      - name: Build sdist
+        run: python -m build --sdist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    needs: [build-wheel-linux-x86_64, build-wheel-linux-arm64, build-sdist]
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/p/eastat
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

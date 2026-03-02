@@ -1,0 +1,2 @@
+include lib*.so
+include kernels/*.ea

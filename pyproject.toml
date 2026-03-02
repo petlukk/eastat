@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eastat"
+version = "0.1.0"
+description = "CSV column statistics powered by Ea SIMD kernels"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+dependencies = ["numpy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+]
+
+[project.scripts]
+eastat = "eastat:main"
+
+[tool.setuptools]
+py-modules = ["eastat", "csv_scan", "csv_layout", "csv_parse", "csv_stats"]
+
+[tool.setuptools.package-data]
+"" = ["lib*.so"]
