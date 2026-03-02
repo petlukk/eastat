@@ -6,57 +6,32 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  EA_VERSION: "v1.5.4"
+  EA_REPO: "petlukk/eacompute"
+
 jobs:
-  build-and-test:
+  test:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check out eacompute
-        uses: actions/checkout@v4
-        with:
-          repository: petlukk/eacompute
-          path: eacompute
-
-      - name: Install LLVM 18 and system deps
+      - name: Download ea binary
         run: |
-          sudo apt-get update
-          sudo apt-get install -y llvm-18-dev clang-18 libpolly-18-dev libzstd-dev
+          curl -fsSL "https://github.com/$EA_REPO/releases/download/$EA_VERSION/ea-linux-x86_64.tar.gz" -o ea.tar.gz
+          tar xzf ea.tar.gz
+          mv ea-linux-x86_64/ea ./ea
+          chmod +x ea
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Build Ea compiler
-        run: cargo build --features=llvm --release --quiet
-        working-directory: eacompute
+      - name: Compile kernels
+        run: EA_BIN=./ea ./build_kernels.sh
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install Python deps
-        run: pip install numpy
-
-      - name: Compile kernels and generate bindings
+      - name: Install and test
         run: |
-          EA=eacompute/target/release/ea
-          for kernel in csv_scan csv_layout csv_parse csv_stats; do
-            $EA kernels/${kernel}.ea --lib -o lib${kernel}.so
-            $EA bind kernels/${kernel}.ea --python
-          done
-
-      - name: Generate test data
-        run: python generate_test.py --rows=100000
-
-      - name: Run eastat (fast scan)
-        run: python eastat.py test_100000.csv --no-quotes
-
-      - name: Run eastat (quoted scan)
-        run: python eastat.py test_100000.csv --quoted
-
-      - name: Run eastat (JSON output)
-        run: python eastat.py test_100000.csv --quoted --json
-
-      - name: Generate and test stress CSV
-        run: |
-          python generate_test.py --stress --rows=1000
-          python eastat.py stress_1000.csv --quoted
+          pip install -e ".[dev]" 2>/dev/null || pip install -e .
+          pip install pytest
+          pytest tests/ -v

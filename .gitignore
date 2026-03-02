@@ -2,8 +2,9 @@
 *.so
 *.o
 *.dll
+src/eastat/lib/
 
-# Auto-generated Python bindings
+# Auto-generated Python bindings (ea bind output, not the package bindings)
 csv_scan.py
 csv_layout.py
 csv_parse.py
@@ -12,6 +13,9 @@ csv_stats.py
 # Python caches
 __pycache__/
 *.pyc
+*.egg-info/
+dist/
+build/
 
 # Test data (generated, not committed)
 test_*.csv
@@ -21,5 +25,5 @@ stress_*.csv
 .DS_Store
 Thumbs.db
 
-# ea inspect output
+# ea metadata
 *.ea.json

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,23 +7,29 @@ name = "eastat"
 version = "0.1.0"
 description = "CSV column statistics powered by Ea SIMD kernels"
 readme = "README.md"
-license = {text = "MIT"}
-requires-python = ">=3.8"
-dependencies = ["numpy"]
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{ name = "Peter Lukka" }]
+keywords = ["csv", "statistics", "simd", "data-analysis", "avx2"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering",
-    "Programming Language :: Python :: 3",
     "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
 ]
+dependencies = ["numpy>=1.21"]
 
 [project.scripts]
-eastat = "eastat:main"
+eastat = "eastat.cli:main"
 
-[tool.setuptools]
-py-modules = ["eastat", "csv_scan", "csv_layout", "csv_parse", "csv_stats"]
+[project.urls]
+Homepage = "https://github.com/petlukk/eastat"
+Repository = "https://github.com/petlukk/eastat"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
-"" = ["lib*.so"]
+eastat = ["lib/*.so", "lib/*.dll", "py.typed"]
