@@ -1,0 +1,25 @@
+# Compiled kernel libraries
+*.so
+*.o
+*.dll
+
+# Auto-generated Python bindings
+csv_scan.py
+csv_layout.py
+csv_parse.py
+csv_stats.py
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Test data (generated, not committed)
+test_*.csv
+stress_*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ea inspect output
+*.ea.json
