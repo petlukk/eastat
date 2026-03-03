@@ -66,6 +66,33 @@ eastat uses a hybrid strategy — Eä SIMD kernels where they genuinely outperfo
 
 Scientific notation (`e`/`E` with optional `+`/`-` sign) is fully supported in numeric parsing, matching pandas/polars behavior.
 
+## Performance
+
+Tested on 1M rows × 5 numeric columns (47 MB CSV, mix of decimal and scientific notation):
+
+```
+eastat breakdown:
+  scan (Eä SIMD) :  105 ms  — structural byte scan
+  layout (Eä)    :   32 ms  — row/column indexing
+  parse (Eä)     :  131 ms  — batch_atof with sci notation
+  stats (Eä f32) :    1 ms  — SIMD sum/min/max/sumsq
+  percentiles    :  154 ms  — np.percentile (f64)
+  total          :  425 ms
+
+pandas  (read_csv + describe):  ~1000 ms
+polars  (read_csv + describe):   ~570 ms
+```
+
+The speedup comes from architecture, not shortcuts:
+
+- **Streaming, not materializing** — mmap → kernel pipeline, no DataFrame construction
+- **Fused SIMD reduction** — sum/min/max/sumsq in one `f32x8` pass (1 ms for 1M rows)
+- **Less memory traffic** — no intermediate arrays between phases
+
+Percentiles use `np.percentile` — same algorithm as pandas. The speedup is structural.
+
+Run `python bench.py` to reproduce on your machine.
+
 ## Building from source
 
 Only needed if there's no pre-built wheel for your platform.
