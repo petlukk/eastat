@@ -200,13 +200,8 @@ def _numeric_stats(val_buf, count, total_rows):
         total_max = float(out_max[0])
         total_sumsq = float(out_sumsq[0])
 
-        out_p25 = np.zeros(1, dtype=np.float32)
-        out_p50 = np.zeros(1, dtype=np.float32)
-        out_p75 = np.zeros(1, dtype=np.float32)
-        csv_stats.f32_percentiles(values, total_min, total_max, out_p25, out_p50, out_p75)
-        p25 = float(out_p25[0])
-        p50 = float(out_p50[0])
-        p75 = float(out_p75[0])
+        pcts = np.percentile(values, [25, 50, 75])
+        p25, p50, p75 = float(pcts[0]), float(pcts[1]), float(pcts[2])
     else:
         arr = values.astype(np.float64)
         total_sum = float(np.sum(arr))

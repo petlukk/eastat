@@ -97,3 +97,42 @@ def test_timings_present(simple_csv):
     for key in ['mmap', 'scan', 'layout', 'stats', 'total']:
         assert key in timings
         assert timings[key] >= 0
+
+
+def test_scientific_notation(tmp_path):
+    """Verify batch_atof handles scientific notation like pandas/polars."""
+    p = tmp_path / "sci.csv"
+    _write_csv([
+        ["val"],
+        ["1.5e-3"],
+        ["-2.0E+5"],
+        ["3e10"],
+        ["4.2E2"],
+        ["7.0e0"],
+    ], p)
+    results, headers, n_rows, col_count, timings = process(p)
+    assert n_rows == 5
+    col = results[0]
+    assert col['count'] == 5
+    # f32 precision: check approximate ranges
+    assert abs(col['min'] - (-200000.0)) < 1.0
+    assert abs(col['max'] - 3e10) / 3e10 < 0.01
+
+
+def test_percentiles_large(tmp_path):
+    """100-row CSV exercising the count >= 16 branch with np.percentile."""
+    p = tmp_path / "large.csv"
+    rows = [["value"]]
+    for i in range(1, 101):
+        rows.append([float(i)])
+    _write_csv(rows, p)
+    results, _, n_rows, _, _ = process(p)
+    assert n_rows == 100
+    col = results[0]
+    assert col['count'] == 100
+    assert col['min'] == 1.0
+    assert col['max'] == 100.0
+    # np.percentile on 1..100 with linear interpolation
+    assert abs(col['p25'] - 25.75) < 0.5
+    assert abs(col['p50'] - 50.5) < 0.5
+    assert abs(col['p75'] - 75.25) < 0.5

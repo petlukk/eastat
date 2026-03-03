@@ -53,6 +53,19 @@ For large files (>128 MB), a two-pass strategy avoids over-allocation: `count_po
 
 Override with `--no-quotes` or `--quoted`.
 
+## Precision & fairness
+
+eastat uses a hybrid strategy — Eä SIMD kernels where they genuinely outperform, NumPy where it's the right tool:
+
+| Statistic | Engine | Precision | Notes |
+|-----------|--------|-----------|-------|
+| sum, min, max, sumsq | Eä `f32x8` SIMD | f32 | Dual-accumulator FMA reduction — faster than NumPy f64 |
+| percentiles (p25/p50/p75) | `np.percentile` | f64 | Same algorithm as pandas — fair comparison, O(n) partial sort |
+| CSV parsing | Eä `batch_atof` | f32 | Handles integers, decimals, signed values, scientific notation (`1.5e-3`, `-2.0E+5`) |
+| structural scan | Eä AVX2/NEON | — | `movemask`-based delimiter/newline detection |
+
+Scientific notation (`e`/`E` with optional `+`/`-` sign) is fully supported in numeric parsing, matching pandas/polars behavior.
+
 ## Building from source
 
 Only needed if there's no pre-built wheel for your platform.
