@@ -15,7 +15,7 @@ permissions:
   id-token: write  # OIDC for trusted publishing
 
 env:
-  EA_VERSION: "v1.5.4"
+  EA_VERSION: "v1.6.0"
   EA_REPO: "petlukk/eacompute"
 
 jobs:

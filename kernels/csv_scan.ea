@@ -1,20 +1,19 @@
 // SIMD CSV structural scanner.
 //
 // Three exports:
-//   scan_positions_fast    — no quote handling, SIMD chunk skip (u8x32 AVX2)
+//   scan_positions_fast    — no quote handling, SIMD chunk skip on x86 (u8x32 AVX2)
 //   scan_positions_quoted  — quote-aware, SIMD chunk skip + scalar quote tracking
 //   count_positions_quoted — count-only scalar scan for two-pass large files
 //
-// Both SIMD functions use AVX2 comparison + movemask to skip 32-byte chunks
-// that contain no structural characters. Position extraction within hot chunks
-// is scalar byte-by-byte.
+// x86: AVX2 comparison + movemask to skip 32-byte chunks with no structural chars.
+// ARM: pure scalar (no movemask, u8x32 exceeds NEON 128-bit width).
 //
 // out_counts: [delim_count, lf_count, header_delim_count]
 
 
-// Fast path: assumes no quoting. Processes 32 bytes per iteration using
-// AVX2 comparison + movemask. Chunks with no delimiters or newlines are
-// skipped entirely (~3 instructions per 32 bytes for cold chunks).
+// --- x86_64: SIMD scan_positions_fast ---
+
+#[cfg(x86_64)]
 export func scan_positions_fast(
     text: *u8,
     len: i32,
@@ -85,11 +84,50 @@ export func scan_positions_fast(
 }
 
 
-// Quote-aware structural scanner. Same SIMD chunk-skip as the fast path,
-// but also detects quote characters. Three skip conditions:
-//   - in_quote=0, no structural, no quotes: skip (data-only chunk)
-//   - in_quote=1, no quotes: skip (entirely inside quoted field)
-//   - otherwise: byte-by-byte with quote state tracking
+// --- aarch64: scalar scan_positions_fast ---
+
+#[cfg(aarch64)]
+export func scan_positions_fast(
+    text: *u8,
+    len: i32,
+    delim: u8,
+    out_delim_pos: *mut i32,
+    out_lf_pos: *mut i32,
+    out_counts: *mut i32
+) {
+    let mut dc: i32 = 0
+    let mut lc: i32 = 0
+    let mut header_dc: i32 = -1
+    let mut i: i32 = 0
+
+    while i < len {
+        let b: u8 = text[i]
+        if b == delim {
+            out_delim_pos[dc] = i
+            dc = dc + 1
+        }
+        if b == 10 {
+            if header_dc == -1 {
+                header_dc = dc
+            }
+            out_lf_pos[lc] = i
+            lc = lc + 1
+        }
+        i = i + 1
+    }
+
+    if header_dc == -1 {
+        header_dc = dc
+    }
+    out_counts[0] = dc
+    out_counts[1] = lc
+    out_counts[2] = header_dc
+}
+
+
+// --- x86_64: SIMD scan_positions_quoted ---
+
+#[cfg(x86_64)]
 export func scan_positions_quoted(
     text: *u8,
     len: i32,
@@ -185,12 +223,62 @@ export func scan_positions_quoted(
 }
 
 
-// Count-only structural scan. Same logic as scan_positions_quoted but without
-// writing position arrays. Used as the first pass of a two-pass strategy:
-// count -> allocate exactly -> scan. Faster than the full scan because it
-// avoids scattered writes to position arrays.
-//
-// out_counts: [delim_count, lf_count, header_delim_count]
+// --- aarch64: scalar scan_positions_quoted ---
+
+#[cfg(aarch64)]
+export func scan_positions_quoted(
+    text: *u8,
+    len: i32,
+    delim: u8,
+    out_delim_pos: *mut i32,
+    out_lf_pos: *mut i32,
+    out_counts: *mut i32
+) {
+    let mut dc: i32 = 0
+    let mut lc: i32 = 0
+    let mut header_dc: i32 = -1
+    let mut in_quote: i32 = 0
+    let mut i: i32 = 0
+
+    while i < len {
+        let b: u8 = text[i]
+
+        if b == 34 {
+            if in_quote == 0 {
+                in_quote = 1
+            } else {
+                in_quote = 0
+            }
+        }
+
+        if in_quote == 0 {
+            if b == delim {
+                out_delim_pos[dc] = i
+                dc = dc + 1
+            }
+            if b == 10 {
+                if header_dc == -1 {
+                    header_dc = dc
+                }
+                out_lf_pos[lc] = i
+                lc = lc + 1
+            }
+        }
+
+        i = i + 1
+    }
+
+    if header_dc == -1 {
+        header_dc = dc
+    }
+    out_counts[0] = dc
+    out_counts[1] = lc
+    out_counts[2] = header_dc
+}
+
+
+// --- Shared: count_positions_quoted (scalar on all platforms) ---
+
 export func count_positions_quoted(
     text: *u8,
     len: i32,

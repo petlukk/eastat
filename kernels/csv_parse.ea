@@ -26,7 +26,7 @@ export func batch_atof(
     let mut count: i32 = 0
     let mut i: i32 = 0
 
-    while i < n {
+    for i in 0..n {
         let mut pos: i32 = starts[i]
         let end: i32 = ends[i]
 
@@ -169,8 +169,6 @@ export func batch_atof(
                 }
             }
         }
-
-        i = i + 1
     }
 
     out_count[0] = count
@@ -195,21 +193,16 @@ export func field_length_stats(
     let mut valid_count: i32 = 0
     let mut i: i32 = 0
 
-    while i < n {
+    for i in 0..n {
         let len: i32 = ends[i] - starts[i]
         if len <= 0 {
             null_count = null_count + 1
         } else {
             total_len = total_len + len
             valid_count = valid_count + 1
-            if len < min_len {
-                min_len = len
-            }
-            if len > max_len {
-                max_len = len
-            }
+            min_len = min(len, min_len)
+            max_len = max(len, max_len)
         }
-        i = i + 1
     }
 
     if valid_count == 0 {
